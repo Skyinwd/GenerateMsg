@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/GPUImage/GPUImage.iml" filepath="$PROJECT_DIR$/GPUImage/GPUImage.iml" />
       <module fileurl="file://$PROJECT_DIR$/GenerateMsg.iml" filepath="$PROJECT_DIR$/GenerateMsg.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
     </modules>

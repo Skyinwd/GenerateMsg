@@ -20,12 +20,18 @@
         android:textStyle="bold"
         android:gravity="center"/>
 
-    <ImageView
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:id="@+id/photoContainer"
+        android:id="@+id/camera_preview"
         android:layout_below="@+id/toolbar"
         android:background="#000000"/>
+
+    <Button
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:id="@+id/camera_capture"
+        />
 
     <include
         android:layout_width="80dp"

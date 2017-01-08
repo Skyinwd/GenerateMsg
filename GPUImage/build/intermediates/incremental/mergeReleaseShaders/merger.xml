@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merger version="3"><dataSet config="main"><source path="/Users/mingxin_yue/Desktop/GenerateDemo/GenerateMsg/GPUImage/src/main/shaders"/></dataSet><dataSet config="release"><source path="/Users/mingxin_yue/Desktop/GenerateDemo/GenerateMsg/GPUImage/src/release/shaders"/></dataSet></merger>

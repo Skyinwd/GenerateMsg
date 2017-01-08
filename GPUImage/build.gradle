@@ -1,0 +1,33 @@
+apply plugin: 'com.android.library'
+
+android {
+    compileSdkVersion 24
+    buildToolsVersion '24.0.1'
+
+    defaultConfig {
+        //applicationId "jp.co.cyberagent.android.gpuimage"
+        minSdkVersion 14
+        targetSdkVersion 24
+
+        ndk {
+            moduleName "gpuimage-library"
+        }
+    }
+
+    //added to fix a ndk related execution error, (should be deleted or commented out if
+    //gradle version does not conflict with your ndk in some android studios.
+    sourceSets.main {
+        jni.srcDirs = []
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+        }
+    }
+}
+
+dependencies {
+    // other dependencies
+}
