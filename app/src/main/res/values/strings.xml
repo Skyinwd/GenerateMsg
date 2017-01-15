@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">GenerateMsg</string>
     <string name="facebook_app_id">1844017732508336</string>
+
+    <string name="perm_read">open read permision of provider description</string>
+    <string name="perm_read_label">open read permision of provider lable</string>
+
+
 </resources>

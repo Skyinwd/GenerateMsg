@@ -1,1 +1,0 @@
-int drawable lookup_warm 0x7f020000

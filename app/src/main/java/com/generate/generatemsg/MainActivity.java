@@ -3,6 +3,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.support.v4.content.FileProvider;
 import android.support.v7.widget.Toolbar;
 import android.view.View;
 
@@ -30,12 +31,12 @@ import android.widget.FrameLayout;
 import android.widget.Button;
 import android.hardware.Camera.PictureCallback;
 import java.io.FileOutputStream;
+import android.content.ContentValues;
+import android.provider.MediaStore.Images;
 
 public class MainActivity extends Activity {
 
   private static final int REQUEST_CODE_SHARE_TO_MESSENGER = 1;
-  static final int REQUEST_TAKE_PHOTO = 1;
-  static final int REQUEST_IMAGE_CAPTURE = 1;
   public static final int MEDIA_TYPE_IMAGE = 1;
   public static final int MEDIA_TYPE_VIDEO = 2;
 
@@ -75,15 +76,11 @@ public class MainActivity extends Activity {
                 // get an image from the camera
                 mCamera.takePicture(null, null, mPicture);
                 // Get photo Uri
-                photoURI = getOutputMediaFileUri(MEDIA_TYPE_IMAGE);
+
+                //onMessengerButtonClicked(photoURI);
               }
             }
     );
-
-
-
-
-
 
     // If we received Intent.ACTION_PICK from Messenger, we were launched from a composer shortcut
     // or the reply flow.
@@ -103,7 +100,7 @@ public class MainActivity extends Activity {
       @Override
       public void onClick(View v) {
         Log.d(TAG, "!!!!!!!! PHOTO URI is : " + photoURI);
-        onMessengerButtonClicked();
+        onMessengerButtonClicked(photoURI);
         Log.d(TAG, "Broken??");
       }
     });
@@ -128,16 +125,34 @@ public class MainActivity extends Activity {
       } catch (IOException e) {
         Log.d(TAG, "Error accessing file: " + e.getMessage());
       }
+
+      //photoURI = getOutputMediaFileUri(MEDIA_TYPE_IMAGE);
+      photoURI = FileProvider.getUriForFile(getApplicationContext(), "com.generage.generatemsg.android.fileprovider", pictureFile);
+      Log.d("YUE", "file URI : " + photoURI.toString());
     }
   };
 
   /** Create a file Uri for saving an image or video */
-  private static Uri getOutputMediaFileUri(int type){
-    return Uri.fromFile(getOutputMediaFile(type));
+  private Uri getOutputMediaFileUri(int type){
+    //return Uri.fromFile(getOutputMediaFile(type))
+    /*
+    try {
+      //File image = getOutputMediaFile(type);
+      Log.d("YUE", "file still exist???: " + getOutputMediaFile(type).exists());
+
+      Uri aaa = FileProvider.getUriForFile(getApplicationContext(), "com.generage.generatemsg.android.fileprovider", getOutputMediaFile(type));
+      Log.d("YUE", "file URI : " + aaa.toString());
+      return aaa;
+    } catch (Exception e){
+      Log.d("YUE", "getOutputMediaFileUri: " + e.getMessage());
+    }*/
+    Uri aaa = FileProvider.getUriForFile(getApplicationContext(), "com.generage.generatemsg.android.fileprovider", getOutputMediaFile(type));
+    Log.d("YUE", "file URI : " + aaa.toString());
+    return aaa;//FileProvider.getUriForFile(context, context.getApplicationContext().getPackageName() + ".provider", getOutputMediaFile(type));
   }
 
   /** Create a File for saving an image or video */
-  private static File getOutputMediaFile(int type){
+  private File getOutputMediaFile(int type){
     // To be safe, you should check that the SDCard is mounted
     // using Environment.getExternalStorageState() before doing this.
 
@@ -155,11 +170,23 @@ public class MainActivity extends Activity {
     }
 
     // Create a media file name
-    String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-    File mediaFile;
+    //String timeStamp = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
+    SimpleDateFormat s = new SimpleDateFormat("ddMMyyyyhhmmss");
+    String timeStamp = s.format(new Date());
+    File mediaFile = null;
     if (type == MEDIA_TYPE_IMAGE){
-      mediaFile = new File(mediaStorageDir.getPath() + File.separator +
-              "IMG_"+ timeStamp + ".jpg");
+      //File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+      //mediaFile = new File(path, "yue620621.jpg");
+      //-----------
+      File storageDir = getApplicationContext().getFilesDir();
+      Log.e("YUE", "getFilesDir " + storageDir);
+      String fileName = "img";
+      Log.e("YUE", "fileName " + fileName);
+      mediaFile = new File(storageDir, fileName.concat(timeStamp).concat(".jpg") );
+      Log.e("YUE", "mediaFile " + mediaFile);
+
+
+
     } else if(type == MEDIA_TYPE_VIDEO) {
       mediaFile = new File(mediaStorageDir.getPath() + File.separator +
               "VID_"+ timeStamp + ".mp4");
@@ -272,16 +299,17 @@ public class MainActivity extends Activity {
 
 
 
-  private void onMessengerButtonClicked() {
+  private void onMessengerButtonClicked(Uri photoURI) {
     // The URI can reference a file://, content://, or android.resource. Here we use
     // android.resource for sample purposes.
     Uri uri =photoURI;
-
+    Log.e("YUE", "URI in click : " + uri);
     // Create the parameters for what we want to send to Messenger.
     ShareToMessengerParams shareToMessengerParams =
         ShareToMessengerParams.newBuilder(uri, "image/jpeg")
-            .setMetaData("{ \"image\" : \"tree\" }")
             .build();
+
+
     if (mPicking) {
       // If we were launched from Messenger, we call MessengerUtils.finishShareToMessenger to return
       // the content to Messenger.
@@ -290,10 +318,17 @@ public class MainActivity extends Activity {
       // Otherwise, we were launched directly (for example, user clicked the launcher icon). We
       // initiate the broadcast flow in Messenger. If Messenger is not installed or Messenger needs
       // to be upgraded, this will direct the user to the play store.
-      MessengerUtils.shareToMessenger(
-          this,
-          REQUEST_CODE_SHARE_TO_MESSENGER,
-          shareToMessengerParams);
+      try{
+        MessengerUtils.shareToMessenger(
+                this,
+                REQUEST_CODE_SHARE_TO_MESSENGER,
+                shareToMessengerParams);
+      }catch (Exception e){
+        Log.e("YUE", "ERROR!!! : " + e);
+      }
+
     }
   }
 }
+
+
