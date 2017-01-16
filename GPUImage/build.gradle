@@ -10,7 +10,7 @@ android {
         targetSdkVersion 24
 
         ndk {
-            moduleName "gpuimage-library"
+            moduleName "gpuimage"
         }
     }
 
