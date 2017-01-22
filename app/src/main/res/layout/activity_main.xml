@@ -20,13 +20,12 @@
         android:textStyle="bold"
         android:gravity="center"/>
 
-    <FrameLayout
+    <android.opengl.GLSurfaceView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:id="@+id/camera_preview"
+        android:id="@+id/gpu_image"
         android:layout_below="@+id/toolbar"
-        android:background="#000000"/>
-
+        android:background="@null"/>
     <Button
         android:layout_width="100dp"
         android:layout_height="100dp"

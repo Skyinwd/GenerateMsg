@@ -1,6 +1,7 @@
 package com.generate.generatemsg;
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.PixelFormat;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.content.FileProvider;
@@ -25,6 +26,8 @@ import android.widget.ImageView;
 import android.content.pm.PackageManager;
 import android.content.Context;
 import android.hardware.Camera;
+import android.hardware.Camera.Parameters;
+import jp.co.cyberagent.android.gpuimage.GPUImageView.Size;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.widget.FrameLayout;
@@ -33,6 +36,16 @@ import android.hardware.Camera.PictureCallback;
 import java.io.FileOutputStream;
 import android.content.ContentValues;
 import android.provider.MediaStore.Images;
+
+import jp.co.cyberagent.android.gpuimage.GPUImage;
+import android.opengl.GLSurfaceView;
+import jp.co.cyberagent.android.gpuimage.GPUImageGrayscaleFilter;
+import android.graphics.Bitmap;
+import android.widget.RelativeLayout;
+
+enum ASPECT_RATIO {
+  NOT_SQUARE, SQUARE
+}
 
 public class MainActivity extends Activity {
 
@@ -49,7 +62,10 @@ public class MainActivity extends Activity {
   private Camera mCamera;
   private CameraPreview mPreview;
   private Uri photoURI;
-
+  private GPUImage mGPUImage;
+  private android.opengl.GLSurfaceView mGLSurfaceView;
+  private ASPECT_RATIO aspectRatio;
+  private float inputAspectRatio = 1f;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
@@ -61,9 +77,29 @@ public class MainActivity extends Activity {
     mCamera = getCameraInstance();
 
     // Create Preview view and set it as the content of the activity.
-    mPreview = new CameraPreview(this, mCamera);
-    FrameLayout preview = (FrameLayout) findViewById(R.id.camera_preview);
-    preview.addView(mPreview);
+    //mPreview = new CameraPreview(this, mCamera);
+    //FrameLayout preview = (FrameLayout) findViewById(R.id.gpu_image);
+    //preview.addView(mPreview);
+
+    /*-------------------------------------------*/
+    mGLSurfaceView = (GLSurfaceView)findViewById(R.id.gpu_image);
+    mGLSurfaceView.post(new Runnable(){
+      @Override
+      public void run(){
+        mGLSurfaceView.postInvalidate();
+        setAspectRatio(ASPECT_RATIO.SQUARE);
+      }
+    });
+    mGPUImage = new GPUImage(this);
+    mGPUImage.setGLSurfaceView(mGLSurfaceView); //Sets the GLSurfaceView which will display the preview.
+    //mGLSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
+    //mGPUImage.setBackgroundColor(0.5f, 0.0f, 0.0f);
+    mGPUImage.setFilter(new GPUImageGrayscaleFilter());
+    //setGPUImageToCamera(); // Sets the up camera to be connected to GPUImage to get a filtered preview.
+    //mCamera.startPreview();
+    //mPreview = new CameraPreview(this, mCamera);
+    //mGPUImage.requestRender();
+    /*-------------------------------------------*/
 
     // Create Messenger Button
     mMessengerButton = findViewById(R.id.messenger_send_button);
@@ -76,7 +112,6 @@ public class MainActivity extends Activity {
                 // get an image from the camera
                 mCamera.takePicture(null, null, mPicture);
                 // Get photo Uri
-
                 //onMessengerButtonClicked(photoURI);
               }
             }
@@ -88,12 +123,9 @@ public class MainActivity extends Activity {
     if (Intent.ACTION_PICK.equals(intent.getAction())) {
       mThreadParams = MessengerUtils.getMessengerThreadParamsForIntent(intent);
       mPicking = true;
-
       // Note, if mThreadParams is non-null, it means the activity was launched from Messenger.
       // It will contain the metadata associated with the original content, if there was content.
     }
-
-
 
     mMessengerButton.setOnClickListener(new View.OnClickListener() {
 
@@ -106,12 +138,59 @@ public class MainActivity extends Activity {
     });
   }
 
+
+  @Override
+  protected void onResume() {
+    // Super First
+    super.onResume();
+
+    setGPUImageToCamera();
+
+  }
+
+
+  private void setAspectRatio(ASPECT_RATIO ratio){
+//        List<Size> sizes = camera.getParameters().getSupportedPictureSizes();
+//        Log.d(TAG, "Supported Picture Sizes: " + sizes.toString());
+
+    aspectRatio = ratio;
+    int height = 0;
+    switch (ratio){
+      case NOT_SQUARE:
+        float displayWidth = (float) getWindowManager().getDefaultDisplay().getWidth();
+        float displayHeight = (float) getWindowManager().getDefaultDisplay().getHeight();
+        inputAspectRatio = displayHeight/displayWidth;
+        height = (int) displayHeight;
+        break;
+      case SQUARE:
+        inputAspectRatio = 1f;
+        height = mGLSurfaceView.getWidth();
+        break;
+      default:
+        break;
+
+    }
+
+
+    //((LinearLayout) findViewById(R.id.aspectRatioMenu)).setVisibility(View.GONE);
+    setSurfaceViewHeight(height);
+
+  }
+
+  private void setSurfaceViewHeight(int height) {
+    RelativeLayout.LayoutParams mParams;
+    mParams = (RelativeLayout.LayoutParams) mGLSurfaceView.getLayoutParams();
+    mParams.height = height;
+    mGLSurfaceView.setLayoutParams(mParams);
+  }
+
   private PictureCallback mPicture = new PictureCallback() {
 
     @Override
     public void onPictureTaken(byte[] data, Camera camera) {
 
       File pictureFile = getOutputMediaFile(MEDIA_TYPE_IMAGE);
+
       if (pictureFile == null){
         Log.d(TAG, "Error creating media file");
         return;
@@ -182,10 +261,10 @@ public class MainActivity extends Activity {
       Log.e("YUE", "getFilesDir " + storageDir);
       String fileName = "img";
       Log.e("YUE", "fileName " + fileName);
-      mediaFile = new File(storageDir, fileName.concat(timeStamp).concat(".jpg") );
+      mediaFile = new File(storageDir, fileName.concat(timeStamp).concat(".jpg"));
       Log.e("YUE", "mediaFile " + mediaFile);
 
-
+      mGPUImage.saveToPictures(storageDir.toString(), fileName.concat(timeStamp).concat(".jpg"), null);
 
     } else if(type == MEDIA_TYPE_VIDEO) {
       mediaFile = new File(mediaStorageDir.getPath() + File.separator +
@@ -279,6 +358,48 @@ public class MainActivity extends Activity {
       }
     }
   }
+  public void closeCamera() {
+    if (mCamera != null) {
+      mCamera.stopPreview();
+      mCamera.setPreviewCallback(null);
+      mCamera.lock();
+      mCamera.release();
+      mCamera = null;
+    }
+  }
+
+  private void setGPUImageToCamera() {
+    Boolean shouldFlipVertically = false;
+    closeCamera();
+    try {
+      mCamera = Camera.open();
+      mCamera.setParameters(setParameters());
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+    //mGPUImage.setUpCamera(mCamera);
+    int currentRotation = 90;
+    mGPUImage.setUpCamera(mCamera, currentRotation, false, shouldFlipVertically);
+  }
+
+  private Parameters setParameters() {
+    Parameters parameters = null;
+    if (mCamera != null) {
+      parameters = mCamera.getParameters();
+    }
+
+
+    // Set Focus
+    if (parameters.getSupportedFocusModes().contains(
+            Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
+      parameters
+              .setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+    }
+
+    return parameters;
+  }
+
 
   private File createImageFile() throws IOException {
     // Create an image file name
