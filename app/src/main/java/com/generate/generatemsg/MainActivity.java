@@ -1,8 +1,10 @@
 package com.generate.generatemsg;
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.BitmapFactory;
 import android.graphics.PixelFormat;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.content.FileProvider;
 import android.support.v7.widget.Toolbar;
@@ -27,6 +29,10 @@ import android.content.pm.PackageManager;
 import android.content.Context;
 import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
+
+import jp.co.cyberagent.android.gpuimage.GPUImageBrightnessFilter;
+import jp.co.cyberagent.android.gpuimage.GPUImageHueFilter;
+import jp.co.cyberagent.android.gpuimage.GPUImagePixelationFilter;
 import jp.co.cyberagent.android.gpuimage.GPUImageView.Size;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -42,6 +48,7 @@ import android.opengl.GLSurfaceView;
 import jp.co.cyberagent.android.gpuimage.GPUImageGrayscaleFilter;
 import android.graphics.Bitmap;
 import android.widget.RelativeLayout;
+import android.widget.Toast;
 
 enum ASPECT_RATIO {
   NOT_SQUARE, SQUARE
@@ -111,11 +118,22 @@ public class MainActivity extends Activity {
               public void onClick(View v) {
                 // get an image from the camera
                 mCamera.takePicture(null, null, mPicture);
+                  Log.d("YUE", "Saved??");
+                //setGPUImageToCamera();
                 // Get photo Uri
                 //onMessengerButtonClicked(photoURI);
+                  /*
+                  mCamera.takePicture(null, null, new Camera.PictureCallback() {
+                      @Override
+                      public void onPictureTaken(byte[] data, final Camera camera) {
+                          // Use this like for loading the image in another thread
+                          new WriteImageFileTask().execute(data);
+
+
+                      }
+                  });*/
               }
-            }
-    );
+            });
 
     // If we received Intent.ACTION_PICK from Messenger, we were launched from a composer shortcut
     // or the reply flow.
@@ -138,6 +156,15 @@ public class MainActivity extends Activity {
     });
   }
 
+
+    private class WriteImageFileTask extends AsyncTask<byte[], Object, Bitmap> {
+        protected Bitmap doInBackground(byte[]... params) {
+
+            Bitmap bitmap = BitmapFactory.decodeByteArray(params[0] , 0, params[0] .length);
+            return bitmap;
+        }
+
+    }
 
   @Override
   protected void onResume() {
@@ -190,6 +217,7 @@ public class MainActivity extends Activity {
     public void onPictureTaken(byte[] data, Camera camera) {
 
       File pictureFile = getOutputMediaFile(MEDIA_TYPE_IMAGE);
+        closeCamera();
 
       if (pictureFile == null){
         Log.d(TAG, "Error creating media file");
@@ -197,7 +225,7 @@ public class MainActivity extends Activity {
       }
       try {
         FileOutputStream fos = new FileOutputStream(pictureFile);
-        fos.write(data);
+          fos.write(data);
         fos.close();
       } catch (FileNotFoundException e) {
         Log.d(TAG, "File not found: " + e.getMessage());
@@ -205,8 +233,39 @@ public class MainActivity extends Activity {
         Log.d(TAG, "Error accessing file: " + e.getMessage());
       }
 
+        // original image been saved
+
+        SimpleDateFormat s = new SimpleDateFormat("ddMMyyyyhhmmss");
+        String timeStamp = s.format(new Date());
+        File mediaFile = null;
+
+        //mGPUImage.setImage());
+        //mGPUImage.setFilter(new GPUImageHueFilter());
+        Bitmap filteredBitmap = mGPUImage.getBitmapWithFilterApplied(BitmapFactory.decodeFile(pictureFile.getPath()));
+        File storageDir = getApplicationContext().getFilesDir();
+        Log.e("YUE", "2 getFilesDir " + storageDir);
+        String fileName = "img_filtered";
+        Log.e("YUE", "2 fileName " + fileName);
+        mediaFile = new File(storageDir, fileName.concat(timeStamp).concat(".jpg"));
+        Log.e("YUE", "2 mediaFile " + mediaFile);
+
+        try {
+            FileOutputStream fos = new FileOutputStream(mediaFile);
+            filteredBitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+            fos.close();
+        } catch (FileNotFoundException e) {
+            Log.d(TAG, "File not found: " + e.getMessage());
+        } catch (IOException e) {
+            Log.d(TAG, "Error accessing file: " + e.getMessage());
+        }
+
+
+
       //photoURI = getOutputMediaFileUri(MEDIA_TYPE_IMAGE);
-      photoURI = FileProvider.getUriForFile(getApplicationContext(), "com.generage.generatemsg.android.fileprovider", pictureFile);
+
+
+
+      photoURI = FileProvider.getUriForFile(getApplicationContext(), "com.generage.generatemsg.android.fileprovider", mediaFile);
       Log.d("YUE", "file URI : " + photoURI.toString());
     }
   };
@@ -264,7 +323,7 @@ public class MainActivity extends Activity {
       mediaFile = new File(storageDir, fileName.concat(timeStamp).concat(".jpg"));
       Log.e("YUE", "mediaFile " + mediaFile);
 
-      mGPUImage.saveToPictures(storageDir.toString(), fileName.concat(timeStamp).concat(".jpg"), null);
+      //mGPUImage.saveToPictures(storageDir.toString(), fileName.concat(timeStamp).concat(".jpg"), null);
 
     } else if(type == MEDIA_TYPE_VIDEO) {
       mediaFile = new File(mediaStorageDir.getPath() + File.separator +
