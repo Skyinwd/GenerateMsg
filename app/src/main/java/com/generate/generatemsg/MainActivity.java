@@ -2,6 +2,7 @@ package com.generate.generatemsg;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -31,8 +32,12 @@ import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
 
 import jp.co.cyberagent.android.gpuimage.GPUImageBrightnessFilter;
+import jp.co.cyberagent.android.gpuimage.GPUImageEmbossFilter;
+import jp.co.cyberagent.android.gpuimage.GPUImageFilter;
 import jp.co.cyberagent.android.gpuimage.GPUImageHueFilter;
 import jp.co.cyberagent.android.gpuimage.GPUImagePixelationFilter;
+import jp.co.cyberagent.android.gpuimage.GPUImageRGBFilter;
+import jp.co.cyberagent.android.gpuimage.GPUImageSphereRefractionFilter;
 import jp.co.cyberagent.android.gpuimage.GPUImageView.Size;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -40,6 +45,8 @@ import android.widget.FrameLayout;
 import android.widget.Button;
 import android.hardware.Camera.PictureCallback;
 import java.io.FileOutputStream;
+import java.util.Random;
+
 import android.content.ContentValues;
 import android.provider.MediaStore.Images;
 
@@ -60,7 +67,16 @@ public class MainActivity extends Activity {
   public static final int MEDIA_TYPE_IMAGE = 1;
   public static final int MEDIA_TYPE_VIDEO = 2;
 
-  private View mMessengerButton;
+  // buttons
+  private Button mMessengerButton;
+  private Button captureButton;
+  private Button reGenerateBtn;
+  private Button reTakePhotoBtn;
+  private Button loadingSignal;
+
+
+  private float yueTestFactorValue;
+
   private MessengerThreadParams mThreadParams;
   private boolean mPicking;
 
@@ -74,11 +90,21 @@ public class MainActivity extends Activity {
   private ASPECT_RATIO aspectRatio;
   private float inputAspectRatio = 1f;
 
+  private Bitmap bitmapToSave;
+  private Context context;
+  private int currentRotation = 90;
+  private String currentFilter;
+  private String lastFilter = "NONE";
+  private String[] filterNameList = {"HUE","PIXEL", "RPG"};
+  private float currentFactor;
+
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     FacebookSdk.sdkInitialize(getApplicationContext()); // facebook sdk initialize
+    context = this;
     setContentView(R.layout.activity_main);
+
 
     // Create an instance of Camera
     mCamera = getCameraInstance();
@@ -99,39 +125,30 @@ public class MainActivity extends Activity {
     });
     mGPUImage = new GPUImage(this);
     mGPUImage.setGLSurfaceView(mGLSurfaceView); //Sets the GLSurfaceView which will display the preview.
-    //mGLSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
-    //mGPUImage.setBackgroundColor(0.5f, 0.0f, 0.0f);
-    mGPUImage.setFilter(new GPUImageGrayscaleFilter());
-    //setGPUImageToCamera(); // Sets the up camera to be connected to GPUImage to get a filtered preview.
-    //mCamera.startPreview();
-    //mPreview = new CameraPreview(this, mCamera);
-    //mGPUImage.requestRender();
-    /*-------------------------------------------*/
+    currentFactor = randomFilterFactor();
+    currentFilter = randomFilter(filterNameList);
+    mGPUImage.setFilter(getGPUImageFilter(currentFilter, currentFactor));
 
-    // Create Messenger Button
-    mMessengerButton = findViewById(R.id.messenger_send_button);
+    // Create Buttons
+    captureButton = (Button) findViewById(R.id.camera_capture); // take photo button
+    reGenerateBtn = (Button) findViewById(R.id.regenerate);
+    mMessengerButton = (Button)findViewById(R.id.send_msg); // send to Messenger button
+    reTakePhotoBtn = (Button) findViewById(R.id.retakephoto);
+    loadingSignal = (Button) findViewById(R.id.loading);
 
     // Create and Add a listener to the Capture button
-    Button captureButton = (Button) findViewById(R.id.camera_capture);
     captureButton.setOnClickListener(new View.OnClickListener() {
               @Override
               public void onClick(View v) {
-                // get an image from the camera
-                mCamera.takePicture(null, null, mPicture);
-                  Log.d("YUE", "Saved??");
-                //setGPUImageToCamera();
-                // Get photo Uri
-                //onMessengerButtonClicked(photoURI);
-                  /*
-                  mCamera.takePicture(null, null, new Camera.PictureCallback() {
-                      @Override
-                      public void onPictureTaken(byte[] data, final Camera camera) {
-                          // Use this like for loading the image in another thread
-                          new WriteImageFileTask().execute(data);
 
+                captureImage();
+                Log.d("YUE", "Saved??");
 
-                      }
-                  });*/
+                // change UI to sendMsg btn and Retake btn
+                captureButton.setVisibility(View.INVISIBLE);
+                reGenerateBtn.setVisibility(View.INVISIBLE);
+                mMessengerButton.setVisibility(View.VISIBLE);
+                reTakePhotoBtn.setVisibility(View.VISIBLE);
               }
             });
 
@@ -154,23 +171,43 @@ public class MainActivity extends Activity {
         Log.d(TAG, "Broken??");
       }
     });
+
+    reGenerateBtn.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        //random a new filter factor
+        currentFactor = randomFilterFactor();
+        do{
+          currentFilter = randomFilter(filterNameList);
+
+        }while (currentFilter == lastFilter);
+
+        lastFilter = currentFilter;
+        mGPUImage.setFilter(getGPUImageFilter(currentFilter, currentFactor));
+
+
+      }
+    });
+
+    reTakePhotoBtn.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        //TODO: clean up current photo
+
+        // change UI to sendMsg btn and Retake btn
+        captureButton.setVisibility(View.VISIBLE);
+        reGenerateBtn.setVisibility(View.VISIBLE);
+        mMessengerButton.setVisibility(View.INVISIBLE);
+        reTakePhotoBtn.setVisibility(View.INVISIBLE);
+      }
+    });
   }
 
-
-    private class WriteImageFileTask extends AsyncTask<byte[], Object, Bitmap> {
-        protected Bitmap doInBackground(byte[]... params) {
-
-            Bitmap bitmap = BitmapFactory.decodeByteArray(params[0] , 0, params[0] .length);
-            return bitmap;
-        }
-
-    }
 
   @Override
   protected void onResume() {
     // Super First
     super.onResume();
-
     setGPUImageToCamera();
 
   }
@@ -211,21 +248,57 @@ public class MainActivity extends Activity {
     mGLSurfaceView.setLayoutParams(mParams);
   }
 
-  private PictureCallback mPicture = new PictureCallback() {
+
+  private void captureImage(){
+    mCamera.takePicture(null, null, new Camera.PictureCallback() {
+      @Override
+      public void onPictureTaken(byte[] data, final Camera camera) {
+        Log.d("YUE", " onPictureTaken start ");
+        // Test Data
+        if(data == null) {
+          Log.d("YUE", "Save Photo Fail!!!!!!!!!!!!!!!!!!!!!!!");
+          return;
+        }
+
+        Log.d("YUE", " Trying to write image file ");
+        loadingSignal.setText("Loading...");
+        // Use this like for loading the image in another thread
+        new WriteImageFileTask().execute(data);
+
+        Log.d("YUE", " Done!!!!! ");
+      }
+    });
+  }
+
+  //ASYNC IMAGE WRITING
+  private class WriteImageFileTask extends AsyncTask<byte[], Object, Bitmap> {
+    protected Bitmap doInBackground(byte[]... params) {
+
+      Bitmap bitmap = BitmapFactory.decodeByteArray(params[0] , 0, params[0] .length);
+      GPUImage yGPUImage = new GPUImage(context);
+      yGPUImage.setFilter(getGPUImageFilter(currentFilter, currentFactor));
+      Bitmap filteredBitmap = yGPUImage.getBitmapWithFilterApplied(bitmap);
+      filteredBitmap = rotateImage(filteredBitmap, currentRotation);
+
+      return filteredBitmap;
+    }
 
     @Override
-    public void onPictureTaken(byte[] data, Camera camera) {
+    protected void onPostExecute(Bitmap result) {
+      //bitmapToSave = result;
 
-      File pictureFile = getOutputMediaFile(MEDIA_TYPE_IMAGE);
-        closeCamera();
+      SimpleDateFormat s = new SimpleDateFormat("ddMMyyyyhhmmss");
+      String timeStamp = s.format(new Date());
 
-      if (pictureFile == null){
-        Log.d(TAG, "Error creating media file");
-        return;
-      }
+      File storageDir = getApplicationContext().getFilesDir();
+      String fileName = "img_filtered";
+      File mediaFile = new File(storageDir, fileName.concat(timeStamp).concat(".jpg"));
+      Log.e("YUE", "mediaFile " + mediaFile);
+
+
       try {
-        FileOutputStream fos = new FileOutputStream(pictureFile);
-          fos.write(data);
+        FileOutputStream fos = new FileOutputStream(mediaFile);
+        result.compress(Bitmap.CompressFormat.JPEG, 80, fos);
         fos.close();
       } catch (FileNotFoundException e) {
         Log.d(TAG, "File not found: " + e.getMessage());
@@ -233,107 +306,22 @@ public class MainActivity extends Activity {
         Log.d(TAG, "Error accessing file: " + e.getMessage());
       }
 
-        // original image been saved
-
-        SimpleDateFormat s = new SimpleDateFormat("ddMMyyyyhhmmss");
-        String timeStamp = s.format(new Date());
-        File mediaFile = null;
-
-        //mGPUImage.setImage());
-        //mGPUImage.setFilter(new GPUImageHueFilter());
-        Bitmap filteredBitmap = mGPUImage.getBitmapWithFilterApplied(BitmapFactory.decodeFile(pictureFile.getPath()));
-        File storageDir = getApplicationContext().getFilesDir();
-        Log.e("YUE", "2 getFilesDir " + storageDir);
-        String fileName = "img_filtered";
-        Log.e("YUE", "2 fileName " + fileName);
-        mediaFile = new File(storageDir, fileName.concat(timeStamp).concat(".jpg"));
-        Log.e("YUE", "2 mediaFile " + mediaFile);
-
-        try {
-            FileOutputStream fos = new FileOutputStream(mediaFile);
-            filteredBitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
-            fos.close();
-        } catch (FileNotFoundException e) {
-            Log.d(TAG, "File not found: " + e.getMessage());
-        } catch (IOException e) {
-            Log.d(TAG, "Error accessing file: " + e.getMessage());
-        }
-
-
-
-      //photoURI = getOutputMediaFileUri(MEDIA_TYPE_IMAGE);
-
-
-
       photoURI = FileProvider.getUriForFile(getApplicationContext(), "com.generage.generatemsg.android.fileprovider", mediaFile);
+      loadingSignal.setText("Done!");
       Log.d("YUE", "file URI : " + photoURI.toString());
     }
-  };
-
-  /** Create a file Uri for saving an image or video */
-  private Uri getOutputMediaFileUri(int type){
-    //return Uri.fromFile(getOutputMediaFile(type))
-    /*
-    try {
-      //File image = getOutputMediaFile(type);
-      Log.d("YUE", "file still exist???: " + getOutputMediaFile(type).exists());
-
-      Uri aaa = FileProvider.getUriForFile(getApplicationContext(), "com.generage.generatemsg.android.fileprovider", getOutputMediaFile(type));
-      Log.d("YUE", "file URI : " + aaa.toString());
-      return aaa;
-    } catch (Exception e){
-      Log.d("YUE", "getOutputMediaFileUri: " + e.getMessage());
-    }*/
-    Uri aaa = FileProvider.getUriForFile(getApplicationContext(), "com.generage.generatemsg.android.fileprovider", getOutputMediaFile(type));
-    Log.d("YUE", "file URI : " + aaa.toString());
-    return aaa;//FileProvider.getUriForFile(context, context.getApplicationContext().getPackageName() + ".provider", getOutputMediaFile(type));
   }
 
-  /** Create a File for saving an image or video */
-  private File getOutputMediaFile(int type){
-    // To be safe, you should check that the SDCard is mounted
-    // using Environment.getExternalStorageState() before doing this.
-
-    File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(
-            Environment.DIRECTORY_PICTURES), "MyCameraApp");
-    // This location works best if you want the created images to be shared
-    // between applications and persist after your app has been uninstalled.
-
-    // Create the storage directory if it does not exist
-    if (! mediaStorageDir.exists()){
-      if (! mediaStorageDir.mkdirs()){
-        Log.d("MyCameraApp", "failed to create directory");
-        return null;
-      }
+  private Bitmap rotateImage(Bitmap source, float angle) {
+    Matrix matrix = new Matrix();
+    matrix.postRotate(angle);
+    if(source == null) {
+      Toast.makeText(context, "Null Image - please try again", Toast.LENGTH_SHORT).show();
     }
-
-    // Create a media file name
-    //String timeStamp = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
-    SimpleDateFormat s = new SimpleDateFormat("ddMMyyyyhhmmss");
-    String timeStamp = s.format(new Date());
-    File mediaFile = null;
-    if (type == MEDIA_TYPE_IMAGE){
-      //File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-      //mediaFile = new File(path, "yue620621.jpg");
-      //-----------
-      File storageDir = getApplicationContext().getFilesDir();
-      Log.e("YUE", "getFilesDir " + storageDir);
-      String fileName = "img";
-      Log.e("YUE", "fileName " + fileName);
-      mediaFile = new File(storageDir, fileName.concat(timeStamp).concat(".jpg"));
-      Log.e("YUE", "mediaFile " + mediaFile);
-
-      //mGPUImage.saveToPictures(storageDir.toString(), fileName.concat(timeStamp).concat(".jpg"), null);
-
-    } else if(type == MEDIA_TYPE_VIDEO) {
-      mediaFile = new File(mediaStorageDir.getPath() + File.separator +
-              "VID_"+ timeStamp + ".mp4");
-    } else {
-      return null;
-    }
-
-    return mediaFile;
+    return Bitmap.createBitmap(source, 0, 0, source.getWidth(), source.getHeight(), matrix, true);
   }
+
+
 
   /** Support Functions **/
   // Check if this device has a camera
@@ -429,7 +417,7 @@ public class MainActivity extends Activity {
 
   private void setGPUImageToCamera() {
     Boolean shouldFlipVertically = false;
-    closeCamera();
+    //closeCamera();
     try {
       mCamera = Camera.open();
       mCamera.setParameters(setParameters());
@@ -438,7 +426,7 @@ public class MainActivity extends Activity {
     }
 
     //mGPUImage.setUpCamera(mCamera);
-    int currentRotation = 90;
+
     mGPUImage.setUpCamera(mCamera, currentRotation, false, shouldFlipVertically);
   }
 
@@ -458,26 +446,6 @@ public class MainActivity extends Activity {
 
     return parameters;
   }
-
-
-  private File createImageFile() throws IOException {
-    // Create an image file name
-    String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-    String imageFileName = "JPEG_" + timeStamp + "_";
-    File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-    Log.e("YUE","temp Dir: "+storageDir);
-    File image = File.createTempFile(
-            imageFileName,  /* prefix */
-            ".jpg",         /* suffix */
-            storageDir      /* directory */
-    );
-
-    // Save a file: path for use with ACTION_VIEW intents
-    // String mCurrentPhotoPath = image.getAbsolutePath();
-    return image;
-  }
-
-
 
   private void onMessengerButtonClicked(Uri photoURI) {
     // The URI can reference a file://, content://, or android.resource. Here we use
@@ -509,6 +477,43 @@ public class MainActivity extends Activity {
 
     }
   }
-}
 
+  /**  **/
+
+  private GPUImageFilter getGPUImageFilter(String filterName, float filterFactor){
+    //TODO: need to add random other filters
+    /**  YUE testing for filter **/
+    switch (filterName){
+      case "HUE":
+        GPUImageHueFilter filterHUE = new GPUImageHueFilter();
+        filterHUE.setHue(filterFactor);
+        return filterHUE;
+      case "PIXEL":
+        GPUImagePixelationFilter filterPIXEL = new GPUImagePixelationFilter();
+        filterPIXEL.setPixel(filterFactor/10);
+        return filterPIXEL;
+      case "RPG":
+        GPUImageEmbossFilter filterRPG = new GPUImageEmbossFilter();
+        filterRPG.setLineSize(filterFactor);
+        return filterRPG;
+    }
+    return null;
+  }
+
+  private String randomFilter(String[] filterNameList){
+    int seed = new Random().nextInt(filterNameList.length);
+    Log.d("YUE", "Random filter ::: " + seed);
+
+    return filterNameList[seed];
+  }
+
+  private float randomFilterFactor(){
+
+    float randomBase = new Random().nextFloat();
+    float factor = randomBase*360;
+    Log.d("YUE", "Random number ::: " + factor);
+    return factor;
+  }
+
+}
 

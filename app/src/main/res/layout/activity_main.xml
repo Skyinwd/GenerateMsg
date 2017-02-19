@@ -3,46 +3,71 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="com.generate.generatemsg.MainActivity">
-
-    <android.support.v7.widget.Toolbar
-        android:layout_width="match_parent"
-        android:layout_height="100dp"
-        android:id="@+id/toolbar"
-        android:background="#0084ff"></android.support.v7.widget.Toolbar>
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="100dp"
-        android:layout_marginLeft="20dp"
-        android:text="Generate Messenger Demo"
-        android:textColor="#ffffff"
-        android:textSize="30dp"
-        android:textStyle="bold"
-        android:gravity="center"/>
+    tools:context="com.generate.generatemsg.MainActivity"
+    android:background="#000000">
 
     <android.opengl.GLSurfaceView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:id="@+id/gpu_image"
-        android:layout_below="@+id/toolbar"
         android:background="@null"/>
+
     <Button
         android:layout_width="100dp"
         android:layout_height="100dp"
         android:id="@+id/camera_capture"
-        />
+        android:layout_marginTop="50dp"
+        android:background="@drawable/btn_takephoto"
+        android:layout_below="@+id/gpu_image"
+        android:layout_centerHorizontal="true" />
 
-    <include
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentRight="true"
-        android:layout_marginBottom="20dp"
-        android:layout_marginRight="20dp"
+    <Button
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:id="@+id/send_msg"
+        android:layout_marginTop="50dp"
+        android:background="@drawable/btn_sendmsg"
+        android:layout_below="@+id/gpu_image"
+        android:layout_centerHorizontal="true"
+        android:visibility="invisible"/>
 
-        layout="@layout/messenger_button_send_blue_round"
+    <Button
+        android:layout_width="200dp"
+        android:layout_height="30dp"
+        android:id="@+id/loading"
+        android:text=""
+        android:textColor="#ffffff"
+        android:layout_below="@+id/gpu_image"
+        android:layout_marginTop="10dp"
+        android:background="@null"
+        android:layout_centerHorizontal="true" />
 
-         />
+    <Button
+        android:layout_width="200dp"
+        android:layout_height="50dp"
+        android:id="@+id/regenerate"
+        android:text="Re Generate"
+        android:textColor="#ffffff"
+        android:layout_marginTop="40dp"
+        android:background="@drawable/btn_bg"
+        android:layout_below="@+id/camera_capture"
+        android:layout_centerHorizontal="true" />
+
+    <Button
+        android:layout_width="200dp"
+        android:layout_height="50dp"
+        android:id="@+id/retakephoto"
+        android:text="Retake Photo"
+        android:textColor="#ffffff"
+        android:layout_marginTop="40dp"
+        android:background="@drawable/btn_bg"
+        android:layout_below="@+id/send_msg"
+        android:layout_centerHorizontal="true"
+        android:visibility="invisible"/>
+
+
+
+
 
 
 
