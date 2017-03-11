@@ -26,21 +26,20 @@
         android:layout_height="100dp"
         android:id="@+id/send_msg"
         android:layout_marginTop="50dp"
-        android:background="@drawable/btn_sendmsg"
+        android:background="@drawable/btn_sendmsg_gray"
         android:layout_below="@+id/gpu_image"
         android:layout_centerHorizontal="true"
         android:visibility="invisible"/>
 
-    <Button
-        android:layout_width="200dp"
-        android:layout_height="30dp"
+    <ImageView
+        android:layout_width="50dp"
+        android:layout_height="50dp"
         android:id="@+id/loading"
-        android:text=""
-        android:textColor="#ffffff"
         android:layout_below="@+id/gpu_image"
-        android:layout_marginTop="10dp"
-        android:background="@null"
-        android:layout_centerHorizontal="true" />
+        android:layout_marginTop="72dp"
+        android:src="@drawable/loading_anim"
+        android:layout_centerHorizontal="true"
+        android:visibility="invisible"/>
 
     <Button
         android:layout_width="200dp"

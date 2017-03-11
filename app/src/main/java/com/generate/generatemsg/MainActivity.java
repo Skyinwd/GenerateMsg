@@ -3,12 +3,10 @@ import android.app.Activity;
 import android.content.Intent;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
-import android.graphics.PixelFormat;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.content.FileProvider;
-import android.support.v7.widget.Toolbar;
 import android.view.View;
 
 import com.facebook.messenger.MessengerThreadParams;
@@ -16,13 +14,10 @@ import com.facebook.messenger.MessengerUtils;
 import com.facebook.messenger.ShareToMessengerParams;
 import com.facebook.FacebookSdk;
 
-import android.provider.MediaStore;
-
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.io.File;
-import android.os.Environment;
 import java.util.Date;
 import android.util.Log;
 import android.widget.ImageView;
@@ -31,31 +26,27 @@ import android.content.Context;
 import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
 
-import jp.co.cyberagent.android.gpuimage.GPUImageBrightnessFilter;
+import jp.co.cyberagent.android.gpuimage.GPUImageBoxBlurFilter;
 import jp.co.cyberagent.android.gpuimage.GPUImageEmbossFilter;
 import jp.co.cyberagent.android.gpuimage.GPUImageFilter;
 import jp.co.cyberagent.android.gpuimage.GPUImageHueFilter;
 import jp.co.cyberagent.android.gpuimage.GPUImagePixelationFilter;
-import jp.co.cyberagent.android.gpuimage.GPUImageRGBFilter;
-import jp.co.cyberagent.android.gpuimage.GPUImageSphereRefractionFilter;
-import jp.co.cyberagent.android.gpuimage.GPUImageView.Size;
+
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.widget.FrameLayout;
 import android.widget.Button;
-import android.hardware.Camera.PictureCallback;
+
 import java.io.FileOutputStream;
 import java.util.Random;
 
-import android.content.ContentValues;
-import android.provider.MediaStore.Images;
-
 import jp.co.cyberagent.android.gpuimage.GPUImage;
 import android.opengl.GLSurfaceView;
-import jp.co.cyberagent.android.gpuimage.GPUImageGrayscaleFilter;
 import android.graphics.Bitmap;
+import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
+import android.graphics.drawable.AnimationDrawable;
+import android.graphics.drawable.Animatable;
 
 enum ASPECT_RATIO {
   NOT_SQUARE, SQUARE
@@ -72,8 +63,8 @@ public class MainActivity extends Activity {
   private Button captureButton;
   private Button reGenerateBtn;
   private Button reTakePhotoBtn;
-  private Button loadingSignal;
-
+  private ImageView loadingSignal;
+  private AnimationDrawable loadingAnimation;
 
   private float yueTestFactorValue;
 
@@ -95,7 +86,7 @@ public class MainActivity extends Activity {
   private int currentRotation = 90;
   private String currentFilter;
   private String lastFilter = "NONE";
-  private String[] filterNameList = {"HUE","PIXEL", "RPG"};
+  private String[] filterNameList = {"HUE","PIXEL", "RPG", "BOX"};//{"BOX","HUE"};//
   private float currentFactor;
 
   @Override
@@ -108,7 +99,8 @@ public class MainActivity extends Activity {
 
     // Create an instance of Camera
     mCamera = getCameraInstance();
-
+    mCamera.setParameters(setParameters());
+    Log.d("YUE", "Final Size Height = "+mCamera.getParameters().getPictureSize().height);
     // Create Preview view and set it as the content of the activity.
     //mPreview = new CameraPreview(this, mCamera);
     //FrameLayout preview = (FrameLayout) findViewById(R.id.gpu_image);
@@ -134,7 +126,14 @@ public class MainActivity extends Activity {
     reGenerateBtn = (Button) findViewById(R.id.regenerate);
     mMessengerButton = (Button)findViewById(R.id.send_msg); // send to Messenger button
     reTakePhotoBtn = (Button) findViewById(R.id.retakephoto);
-    loadingSignal = (Button) findViewById(R.id.loading);
+    loadingSignal = (ImageView) findViewById(R.id.loading);
+
+    loadingAnimation = (AnimationDrawable) loadingSignal.getBackground();
+    //loadingAnimation = (AnimationDrawable)((ImageView) loadingSignal).getDrawable();
+
+
+    //loadingSignal.setBackgroundResource(R.drawable.loadingAnim);
+
 
     // Create and Add a listener to the Capture button
     captureButton.setOnClickListener(new View.OnClickListener() {
@@ -147,7 +146,9 @@ public class MainActivity extends Activity {
                 // change UI to sendMsg btn and Retake btn
                 captureButton.setVisibility(View.INVISIBLE);
                 reGenerateBtn.setVisibility(View.INVISIBLE);
+                //mMessengerButton.setBackgroundResource(R.drawable.btn_sendmsg_gray);
                 mMessengerButton.setVisibility(View.VISIBLE);
+                loadingSignal.setVisibility(View.VISIBLE);
                 reTakePhotoBtn.setVisibility(View.VISIBLE);
               }
             });
@@ -157,6 +158,7 @@ public class MainActivity extends Activity {
     Intent intent = getIntent();
     if (Intent.ACTION_PICK.equals(intent.getAction())) {
       mThreadParams = MessengerUtils.getMessengerThreadParamsForIntent(intent);
+
       mPicking = true;
       // Note, if mThreadParams is non-null, it means the activity was launched from Messenger.
       // It will contain the metadata associated with the original content, if there was content.
@@ -175,6 +177,7 @@ public class MainActivity extends Activity {
     reGenerateBtn.setOnClickListener(new View.OnClickListener() {
       @Override
       public void onClick(View v) {
+
         //random a new filter factor
         currentFactor = randomFilterFactor();
         do{
@@ -194,10 +197,14 @@ public class MainActivity extends Activity {
       public void onClick(View v) {
         //TODO: clean up current photo
 
+        //restart camera preview
+        mCamera.startPreview();
+
         // change UI to sendMsg btn and Retake btn
         captureButton.setVisibility(View.VISIBLE);
         reGenerateBtn.setVisibility(View.VISIBLE);
         mMessengerButton.setVisibility(View.INVISIBLE);
+        mMessengerButton.setBackgroundResource(R.drawable.btn_sendmsg_gray);
         reTakePhotoBtn.setVisibility(View.INVISIBLE);
       }
     });
@@ -261,7 +268,9 @@ public class MainActivity extends Activity {
         }
 
         Log.d("YUE", " Trying to write image file ");
-        loadingSignal.setText("Loading...");
+
+        // TODO: set MessengerButton to gray
+        // TODO: add loading rotation icon on top
         // Use this like for loading the image in another thread
         new WriteImageFileTask().execute(data);
 
@@ -307,7 +316,9 @@ public class MainActivity extends Activity {
       }
 
       photoURI = FileProvider.getUriForFile(getApplicationContext(), "com.generage.generatemsg.android.fileprovider", mediaFile);
-      loadingSignal.setText("Done!");
+      loadingSignal.setVisibility(View.INVISIBLE);
+      mMessengerButton.setBackgroundResource(R.drawable.btn_sendmsg);
+
       Log.d("YUE", "file URI : " + photoURI.toString());
     }
   }
@@ -417,25 +428,22 @@ public class MainActivity extends Activity {
 
   private void setGPUImageToCamera() {
     Boolean shouldFlipVertically = false;
-    //closeCamera();
     try {
       mCamera = Camera.open();
       mCamera.setParameters(setParameters());
+      Log.d("YUE", "Final Size Height = "+mCamera.getParameters().getPictureSize().height);
     } catch (Exception e) {
       e.printStackTrace();
     }
-
-    //mGPUImage.setUpCamera(mCamera);
-
     mGPUImage.setUpCamera(mCamera, currentRotation, false, shouldFlipVertically);
   }
 
+  // setup parameters for Camera
   private Parameters setParameters() {
     Parameters parameters = null;
     if (mCamera != null) {
       parameters = mCamera.getParameters();
     }
-
 
     // Set Focus
     if (parameters.getSupportedFocusModes().contains(
@@ -443,6 +451,10 @@ public class MainActivity extends Activity {
       parameters
               .setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
     }
+
+    // Set camera to square
+    int width = parameters.getPreviewSize().width;
+    parameters.setPictureSize(width,width);
 
     return parameters;
   }
@@ -481,8 +493,8 @@ public class MainActivity extends Activity {
   /**  **/
 
   private GPUImageFilter getGPUImageFilter(String filterName, float filterFactor){
-    //TODO: need to add random other filters
-    /**  YUE testing for filter **/
+    //TODO: Each type of filter have different factor numbers. Maybe send random seed and random all factors at here.
+    Log.d("YUE", "filter : "+filterName);
     switch (filterName){
       case "HUE":
         GPUImageHueFilter filterHUE = new GPUImageHueFilter();
@@ -495,7 +507,13 @@ public class MainActivity extends Activity {
       case "RPG":
         GPUImageEmbossFilter filterRPG = new GPUImageEmbossFilter();
         filterRPG.setLineSize(filterFactor);
+        filterRPG.setTexelHeight(filterFactor/100);
+        filterRPG.setTexelWidth(filterFactor/50);
         return filterRPG;
+      case "BOX":
+        GPUImageBoxBlurFilter filterBox = new GPUImageBoxBlurFilter();
+        filterBox.setBlurSize((filterFactor+100)/30);
+        return filterBox;
     }
     return null;
   }
