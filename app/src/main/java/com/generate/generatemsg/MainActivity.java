@@ -47,6 +47,7 @@ import android.widget.RelativeLayout;
 import android.widget.Toast;
 import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.Animatable;
+import java.util.List;
 
 enum ASPECT_RATIO {
   NOT_SQUARE, SQUARE
@@ -86,7 +87,7 @@ public class MainActivity extends Activity {
   private int currentRotation = 90;
   private String currentFilter;
   private String lastFilter = "NONE";
-  private String[] filterNameList = {"HUE","PIXEL", "RPG", "BOX"};//{"BOX","HUE"};//
+  private String[] filterNameList = {"HUE","PIXEL", "RPG", "BOX", "DOT"};//{"BOX","HUE"};//
   private float currentFactor;
 
   @Override
@@ -455,6 +456,13 @@ public class MainActivity extends Activity {
     // Set camera to square
     int width = parameters.getPreviewSize().width;
     parameters.setPictureSize(width,width);
+    List<Camera.Size> previewSizeList = parameters.getSupportedPreviewSizes();
+
+    for (Camera.Size size : previewSizeList) {
+      Log.e("YUE", "Size : " + size.width + " : " + size.height);
+
+    }
+    parameters.setPreviewSize(previewSizeList.get(0).width,previewSizeList.get(0).height);
 
     return parameters;
   }
@@ -498,21 +506,25 @@ public class MainActivity extends Activity {
     switch (filterName){
       case "HUE":
         GPUImageHueFilter filterHUE = new GPUImageHueFilter();
-        filterHUE.setHue(filterFactor);
+        filterHUE.setHue(filterFactor*360);
         return filterHUE;
       case "PIXEL":
         GPUImagePixelationFilter filterPIXEL = new GPUImagePixelationFilter();
-        filterPIXEL.setPixel(filterFactor/10);
+        filterPIXEL.setPixel(filterFactor*30);
         return filterPIXEL;
       case "RPG":
         GPUImageEmbossFilter filterRPG = new GPUImageEmbossFilter();
-        filterRPG.setLineSize(filterFactor);
-        filterRPG.setTexelHeight(filterFactor/100);
-        filterRPG.setTexelWidth(filterFactor/50);
+        filterRPG.setLineSize(filterFactor*360);
+        filterRPG.setTexelHeight(filterFactor*3);
+        filterRPG.setTexelWidth(filterFactor*7);
         return filterRPG;
+      case "DOT":
+        PolkaDotFilter filterDOT = new PolkaDotFilter();
+        filterDOT.setDotScaling(filterFactor*0.1f+0.7f);
+        return filterDOT;
       case "BOX":
         GPUImageBoxBlurFilter filterBox = new GPUImageBoxBlurFilter();
-        filterBox.setBlurSize((filterFactor+100)/30);
+        filterBox.setBlurSize(filterFactor*12+10);
         return filterBox;
     }
     return null;
@@ -527,10 +539,10 @@ public class MainActivity extends Activity {
 
   private float randomFilterFactor(){
 
-    float randomBase = new Random().nextFloat();
-    float factor = randomBase*360;
-    Log.d("YUE", "Random number ::: " + factor);
-    return factor;
+    float randomSeed = new Random().nextFloat();
+    //float factor = randomBase*360;
+    Log.d("YUE", "Random number ::: " + randomSeed);
+    return randomSeed;
   }
 
 }
