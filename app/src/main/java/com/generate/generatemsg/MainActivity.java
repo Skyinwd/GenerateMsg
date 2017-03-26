@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.net.Uri;
+import android.opengl.GLES20;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.content.FileProvider;
@@ -48,6 +49,9 @@ import android.widget.Toast;
 import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.Animatable;
 import java.util.List;
+import javax.microedition.khronos.opengles.GL10;
+import android.opengl.GLException;
+import java.nio.IntBuffer;
 
 enum ASPECT_RATIO {
   NOT_SQUARE, SQUARE
@@ -289,6 +293,7 @@ public class MainActivity extends Activity {
       yGPUImage.setFilter(getGPUImageFilter(currentFilter, currentFactor));
       Bitmap filteredBitmap = yGPUImage.getBitmapWithFilterApplied(bitmap);
       filteredBitmap = rotateImage(filteredBitmap, currentRotation);
+      filteredBitmap = cropImage(filteredBitmap);
 
       return filteredBitmap;
     }
@@ -331,6 +336,17 @@ public class MainActivity extends Activity {
       Toast.makeText(context, "Null Image - please try again", Toast.LENGTH_SHORT).show();
     }
     return Bitmap.createBitmap(source, 0, 0, source.getWidth(), source.getHeight(), matrix, true);
+  }
+
+  private Bitmap cropImage(Bitmap source) {
+    if(source == null) {
+      Toast.makeText(context, "Null Image - please try again", Toast.LENGTH_SHORT).show();
+    }
+    int width = source.getWidth();
+    int height = source.getHeight();
+    int marginTop = (height-width)/2;
+
+    return Bitmap.createBitmap(source, 0, marginTop, width, width);
   }
 
 
@@ -454,15 +470,16 @@ public class MainActivity extends Activity {
     }
 
     // Set camera to square
-    int width = parameters.getPreviewSize().width;
-    parameters.setPictureSize(width,width);
     List<Camera.Size> previewSizeList = parameters.getSupportedPreviewSizes();
 
     for (Camera.Size size : previewSizeList) {
       Log.e("YUE", "Size : " + size.width + " : " + size.height);
 
     }
+
     parameters.setPreviewSize(previewSizeList.get(0).width,previewSizeList.get(0).height);
+    parameters.setPictureSize(previewSizeList.get(0).width,previewSizeList.get(0).height);
+
 
     return parameters;
   }
@@ -471,6 +488,8 @@ public class MainActivity extends Activity {
     // The URI can reference a file://, content://, or android.resource. Here we use
     // android.resource for sample purposes.
     Uri uri =photoURI;
+
+
     Log.e("YUE", "URI in click : " + uri);
     // Create the parameters for what we want to send to Messenger.
     ShareToMessengerParams shareToMessengerParams =
@@ -543,6 +562,34 @@ public class MainActivity extends Activity {
     //float factor = randomBase*360;
     Log.d("YUE", "Random number ::: " + randomSeed);
     return randomSeed;
+  }
+
+  private Bitmap createBitmapFromGLSurface(int x, int y, int w, int h, GL10 gl)
+          throws OutOfMemoryError {
+    int bitmapBuffer[] = new int[w * h];
+    int bitmapSource[] = new int[w * h];
+    IntBuffer intBuffer = IntBuffer.wrap(bitmapBuffer);
+    intBuffer.position(0);
+
+    try {
+      gl.glReadPixels(x, y, w, h, GL10.GL_RGBA, GL10.GL_UNSIGNED_BYTE, intBuffer);
+      int offset1, offset2;
+      for (int i = 0; i < h; i++) {
+        offset1 = i * w;
+        offset2 = (h - i - 1) * w;
+        for (int j = 0; j < w; j++) {
+          int texturePixel = bitmapBuffer[offset1 + j];
+          int blue = (texturePixel >> 16) & 0xff;
+          int red = (texturePixel << 16) & 0x00ff0000;
+          int pixel = (texturePixel & 0xff00ff00) | red | blue;
+          bitmapSource[offset2 + j] = pixel;
+        }
+      }
+    } catch (GLException e) {
+      return null;
+    }
+
+    return Bitmap.createBitmap(bitmapSource, w, h, Bitmap.Config.ARGB_8888);
   }
 
 }
