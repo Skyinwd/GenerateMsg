@@ -4,7 +4,6 @@ import android.content.Intent;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.net.Uri;
-import android.opengl.GLES20;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.content.FileProvider;
@@ -43,25 +42,20 @@ import java.util.Random;
 import jp.co.cyberagent.android.gpuimage.GPUImage;
 import android.opengl.GLSurfaceView;
 import android.graphics.Bitmap;
-import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 import android.graphics.drawable.AnimationDrawable;
-import android.graphics.drawable.Animatable;
 import java.util.List;
 import javax.microedition.khronos.opengles.GL10;
 import android.opengl.GLException;
 import java.nio.IntBuffer;
 
-enum ASPECT_RATIO {
-  NOT_SQUARE, SQUARE
-}
+// currently only support 1:1 ratio
+enum ASPECT_RATIO { SQUARE }
 
 public class MainActivity extends Activity {
 
   private static final int REQUEST_CODE_SHARE_TO_MESSENGER = 1;
-  public static final int MEDIA_TYPE_IMAGE = 1;
-  public static final int MEDIA_TYPE_VIDEO = 2;
 
   // buttons
   private Button mMessengerButton;
@@ -71,12 +65,10 @@ public class MainActivity extends Activity {
   private ImageView loadingSignal;
   private AnimationDrawable loadingAnimation;
 
-  private float yueTestFactorValue;
-
   private MessengerThreadParams mThreadParams;
   private boolean mPicking;
 
-  private String TAG = "YUE:";
+  private String TAG = "GenerateMsg:";
 
   private Camera mCamera;
   private CameraPreview mPreview;
@@ -91,7 +83,7 @@ public class MainActivity extends Activity {
   private int currentRotation = 90;
   private String currentFilter;
   private String lastFilter = "NONE";
-  private String[] filterNameList = {"HUE","PIXEL", "RPG", "BOX", "DOT"};//{"BOX","HUE"};//
+  private String[] filterNameList = {"HUE","PIXEL", "RPG", "BOX", "DOT"}; // New filter need to add name into this list
   private float currentFactor;
 
   @Override
@@ -101,17 +93,10 @@ public class MainActivity extends Activity {
     context = this;
     setContentView(R.layout.activity_main);
 
-
     // Create an instance of Camera
     mCamera = getCameraInstance();
     mCamera.setParameters(setParameters());
-    Log.d("YUE", "Final Size Height = "+mCamera.getParameters().getPictureSize().height);
-    // Create Preview view and set it as the content of the activity.
-    //mPreview = new CameraPreview(this, mCamera);
-    //FrameLayout preview = (FrameLayout) findViewById(R.id.gpu_image);
-    //preview.addView(mPreview);
 
-    /*-------------------------------------------*/
     mGLSurfaceView = (GLSurfaceView)findViewById(R.id.gpu_image);
     mGLSurfaceView.post(new Runnable(){
       @Override
@@ -132,22 +117,13 @@ public class MainActivity extends Activity {
     mMessengerButton = (Button)findViewById(R.id.send_msg); // send to Messenger button
     reTakePhotoBtn = (Button) findViewById(R.id.retakephoto);
     loadingSignal = (ImageView) findViewById(R.id.loading);
-
     loadingAnimation = (AnimationDrawable) loadingSignal.getBackground();
-    //loadingAnimation = (AnimationDrawable)((ImageView) loadingSignal).getDrawable();
 
-
-    //loadingSignal.setBackgroundResource(R.drawable.loadingAnim);
-
-
-    // Create and Add a listener to the Capture button
+    /** Capture button click listener **/
     captureButton.setOnClickListener(new View.OnClickListener() {
               @Override
               public void onClick(View v) {
-
                 captureImage();
-                Log.d("YUE", "Saved??");
-
                 // change UI to sendMsg btn and Retake btn
                 captureButton.setVisibility(View.INVISIBLE);
                 reGenerateBtn.setVisibility(View.INVISIBLE);
@@ -158,27 +134,24 @@ public class MainActivity extends Activity {
               }
             });
 
-    // If we received Intent.ACTION_PICK from Messenger, we were launched from a composer shortcut
-    // or the reply flow.
     Intent intent = getIntent();
     if (Intent.ACTION_PICK.equals(intent.getAction())) {
       mThreadParams = MessengerUtils.getMessengerThreadParamsForIntent(intent);
-
       mPicking = true;
       // Note, if mThreadParams is non-null, it means the activity was launched from Messenger.
       // It will contain the metadata associated with the original content, if there was content.
     }
 
+    /** Send Photo To Messenger button click listener **/
     mMessengerButton.setOnClickListener(new View.OnClickListener() {
 
       @Override
       public void onClick(View v) {
-        Log.d(TAG, "!!!!!!!! PHOTO URI is : " + photoURI);
         onMessengerButtonClicked(photoURI);
-        Log.d(TAG, "Broken??");
       }
     });
 
+    /** Re Generate Filter button click listener **/
     reGenerateBtn.setOnClickListener(new View.OnClickListener() {
       @Override
       public void onClick(View v) {
@@ -192,19 +165,15 @@ public class MainActivity extends Activity {
 
         lastFilter = currentFilter;
         mGPUImage.setFilter(getGPUImageFilter(currentFilter, currentFactor));
-
-
       }
     });
 
+    /** Retake Photo button click listener **/
     reTakePhotoBtn.setOnClickListener(new View.OnClickListener() {
       @Override
       public void onClick(View v) {
-        //TODO: clean up current photo
-
         //restart camera preview
         mCamera.startPreview();
-
         // change UI to sendMsg btn and Retake btn
         captureButton.setVisibility(View.VISIBLE);
         reGenerateBtn.setVisibility(View.VISIBLE);
@@ -215,44 +184,33 @@ public class MainActivity extends Activity {
     });
   }
 
-
   @Override
   protected void onResume() {
     // Super First
     super.onResume();
     setGPUImageToCamera();
-
   }
 
-
+  /** Set the surfaceView ratio to 1:1 **/
   private void setAspectRatio(ASPECT_RATIO ratio){
-//        List<Size> sizes = camera.getParameters().getSupportedPictureSizes();
-//        Log.d(TAG, "Supported Picture Sizes: " + sizes.toString());
-
     aspectRatio = ratio;
     int height = 0;
     switch (ratio){
-      case NOT_SQUARE:
-        float displayWidth = (float) getWindowManager().getDefaultDisplay().getWidth();
-        float displayHeight = (float) getWindowManager().getDefaultDisplay().getHeight();
-        inputAspectRatio = displayHeight/displayWidth;
-        height = (int) displayHeight;
-        break;
       case SQUARE:
         inputAspectRatio = 1f;
         height = mGLSurfaceView.getWidth();
         break;
       default:
+        float displayWidth = (float) getWindowManager().getDefaultDisplay().getWidth();
+        float displayHeight = (float) getWindowManager().getDefaultDisplay().getHeight();
+        inputAspectRatio = displayHeight/displayWidth;
+        height = (int) displayHeight;
         break;
-
     }
-
-
-    //((LinearLayout) findViewById(R.id.aspectRatioMenu)).setVisibility(View.GONE);
     setSurfaceViewHeight(height);
-
   }
 
+  /** Set the surfaceView height **/
   private void setSurfaceViewHeight(int height) {
     RelativeLayout.LayoutParams mParams;
     mParams = (RelativeLayout.LayoutParams) mGLSurfaceView.getLayoutParams();
@@ -260,31 +218,23 @@ public class MainActivity extends Activity {
     mGLSurfaceView.setLayoutParams(mParams);
   }
 
-
+  /** Take image **/
   private void captureImage(){
     mCamera.takePicture(null, null, new Camera.PictureCallback() {
       @Override
       public void onPictureTaken(byte[] data, final Camera camera) {
-        Log.d("YUE", " onPictureTaken start ");
-        // Test Data
         if(data == null) {
-          Log.d("YUE", "Save Photo Fail!!!!!!!!!!!!!!!!!!!!!!!");
           return;
         }
-
-        Log.d("YUE", " Trying to write image file ");
-
-        // TODO: set MessengerButton to gray
-        // TODO: add loading rotation icon on top
         // Use this like for loading the image in another thread
         new WriteImageFileTask().execute(data);
-
-        Log.d("YUE", " Done!!!!! ");
       }
     });
   }
 
-  //ASYNC IMAGE WRITING
+  /** Async image writing **/
+  // Currently save the photo first and asign filter again onto the photo
+  // Didn't figure out different way to do it
   private class WriteImageFileTask extends AsyncTask<byte[], Object, Bitmap> {
     protected Bitmap doInBackground(byte[]... params) {
 
@@ -300,16 +250,12 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPostExecute(Bitmap result) {
-      //bitmapToSave = result;
-
       SimpleDateFormat s = new SimpleDateFormat("ddMMyyyyhhmmss");
       String timeStamp = s.format(new Date());
 
       File storageDir = getApplicationContext().getFilesDir();
       String fileName = "img_filtered";
       File mediaFile = new File(storageDir, fileName.concat(timeStamp).concat(".jpg"));
-      Log.e("YUE", "mediaFile " + mediaFile);
-
 
       try {
         FileOutputStream fos = new FileOutputStream(mediaFile);
@@ -324,11 +270,10 @@ public class MainActivity extends Activity {
       photoURI = FileProvider.getUriForFile(getApplicationContext(), "com.generage.generatemsg.android.fileprovider", mediaFile);
       loadingSignal.setVisibility(View.INVISIBLE);
       mMessengerButton.setBackgroundResource(R.drawable.btn_sendmsg);
-
-      Log.d("YUE", "file URI : " + photoURI.toString());
     }
   }
 
+  /** Rotate image **/
   private Bitmap rotateImage(Bitmap source, float angle) {
     Matrix matrix = new Matrix();
     matrix.postRotate(angle);
@@ -338,6 +283,7 @@ public class MainActivity extends Activity {
     return Bitmap.createBitmap(source, 0, 0, source.getWidth(), source.getHeight(), matrix, true);
   }
 
+  /** Crop final photo, get the middle square of the photo **/
   private Bitmap cropImage(Bitmap source) {
     if(source == null) {
       Toast.makeText(context, "Null Image - please try again", Toast.LENGTH_SHORT).show();
@@ -349,10 +295,12 @@ public class MainActivity extends Activity {
     return Bitmap.createBitmap(source, 0, marginTop, width, width);
   }
 
+  /** ===================================================
+   *  Support Functions
+   *  ===================================================**/
 
-
-  /** Support Functions **/
-  // Check if this device has a camera
+  /** Check if this device has a camera **/
+  // didn't use it currently
   private boolean checkCameraHardware(Context context) {
     if (context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA)){
       return true; // this device has a camera
@@ -443,19 +391,21 @@ public class MainActivity extends Activity {
     }
   }
 
+  /** Setup GPU image for camera in order to have preview with filter **/
   private void setGPUImageToCamera() {
     Boolean shouldFlipVertically = false;
     try {
       mCamera = Camera.open();
       mCamera.setParameters(setParameters());
-      Log.d("YUE", "Final Size Height = "+mCamera.getParameters().getPictureSize().height);
     } catch (Exception e) {
       e.printStackTrace();
     }
     mGPUImage.setUpCamera(mCamera, currentRotation, false, shouldFlipVertically);
   }
 
-  // setup parameters for Camera
+  /** Setup Parameters for camera **/
+  // The preview width and height have to be set same with the picture width and height
+  // or the photo it takes will looks different with preview
   private Parameters setParameters() {
     Parameters parameters = null;
     if (mCamera != null) {
@@ -469,33 +419,25 @@ public class MainActivity extends Activity {
               .setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
     }
 
-    // Set camera to square
+    // Set picture size same with preview
     List<Camera.Size> previewSizeList = parameters.getSupportedPreviewSizes();
-
-    for (Camera.Size size : previewSizeList) {
-      Log.e("YUE", "Size : " + size.width + " : " + size.height);
-
-    }
 
     parameters.setPreviewSize(previewSizeList.get(0).width,previewSizeList.get(0).height);
     parameters.setPictureSize(previewSizeList.get(0).width,previewSizeList.get(0).height);
 
-
     return parameters;
   }
 
+  /** The Facebook Messenger API part **/
   private void onMessengerButtonClicked(Uri photoURI) {
     // The URI can reference a file://, content://, or android.resource. Here we use
     // android.resource for sample purposes.
     Uri uri =photoURI;
 
-
-    Log.e("YUE", "URI in click : " + uri);
     // Create the parameters for what we want to send to Messenger.
     ShareToMessengerParams shareToMessengerParams =
         ShareToMessengerParams.newBuilder(uri, "image/jpeg")
             .build();
-
 
     if (mPicking) {
       // If we were launched from Messenger, we call MessengerUtils.finishShareToMessenger to return
@@ -511,17 +453,17 @@ public class MainActivity extends Activity {
                 REQUEST_CODE_SHARE_TO_MESSENGER,
                 shareToMessengerParams);
       }catch (Exception e){
-        Log.e("YUE", "ERROR!!! : " + e);
+        Log.e(TAG, "ERROR!!! : " + e);
       }
-
     }
   }
 
-  /**  **/
-
+  /** Random a filter and set filter factor on it **/
+  // the idea here is set all factors of filter with on float number
+  // I don't have time to do much on the formula part, so it's still draft
+  // The following 5 filters are for testing
   private GPUImageFilter getGPUImageFilter(String filterName, float filterFactor){
-    //TODO: Each type of filter have different factor numbers. Maybe send random seed and random all factors at here.
-    Log.d("YUE", "filter : "+filterName);
+    Log.d(TAG, "filter : "+filterName);
     switch (filterName){
       case "HUE":
         GPUImageHueFilter filterHUE = new GPUImageHueFilter();
@@ -549,48 +491,16 @@ public class MainActivity extends Activity {
     return null;
   }
 
+  /** Get a random filter name from filter list **/
   private String randomFilter(String[] filterNameList){
     int seed = new Random().nextInt(filterNameList.length);
-    Log.d("YUE", "Random filter ::: " + seed);
-
     return filterNameList[seed];
   }
 
+  /** Get a random float number as filter factor **/
   private float randomFilterFactor(){
-
     float randomSeed = new Random().nextFloat();
-    //float factor = randomBase*360;
-    Log.d("YUE", "Random number ::: " + randomSeed);
     return randomSeed;
   }
-
-  private Bitmap createBitmapFromGLSurface(int x, int y, int w, int h, GL10 gl)
-          throws OutOfMemoryError {
-    int bitmapBuffer[] = new int[w * h];
-    int bitmapSource[] = new int[w * h];
-    IntBuffer intBuffer = IntBuffer.wrap(bitmapBuffer);
-    intBuffer.position(0);
-
-    try {
-      gl.glReadPixels(x, y, w, h, GL10.GL_RGBA, GL10.GL_UNSIGNED_BYTE, intBuffer);
-      int offset1, offset2;
-      for (int i = 0; i < h; i++) {
-        offset1 = i * w;
-        offset2 = (h - i - 1) * w;
-        for (int j = 0; j < w; j++) {
-          int texturePixel = bitmapBuffer[offset1 + j];
-          int blue = (texturePixel >> 16) & 0xff;
-          int red = (texturePixel << 16) & 0x00ff0000;
-          int pixel = (texturePixel & 0xff00ff00) | red | blue;
-          bitmapSource[offset2 + j] = pixel;
-        }
-      }
-    } catch (GLException e) {
-      return null;
-    }
-
-    return Bitmap.createBitmap(bitmapSource, w, h, Bitmap.Config.ARGB_8888);
-  }
-
 }
 
